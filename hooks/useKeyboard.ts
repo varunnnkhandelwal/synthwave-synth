@@ -5,7 +5,10 @@ import { keyToNote } from '@/audio/keymap';
 import { AudioEngine } from '@/audio/engine';
 import { NoteRecorder } from '@/audio/recorder';
 
-const PREVENT_DEFAULT_KEYS = new Set(['a','s','d','f','g','h','j','k','l','w','e','t','y','u']);
+const PREVENT_DEFAULT_KEYS = new Set([
+  'a','s','d','f','g','h','j','k','l',';',"'",'z','x','c','v',
+  'w','e','t','y','u','i','o','[',']','\\',
+]);
 
 export function useKeyboard(
   engineRef: React.RefObject<AudioEngine | null>,
@@ -13,7 +16,9 @@ export function useKeyboard(
   octave: number,
   onNoteChange: (note: string | null) => void,
   onInit: () => void,
-  disabled = false
+  disabled = false,
+  onAttack?: (note: string) => void,
+  onRelease?: (note: string) => void,
 ) {
   const held = useRef<Set<string>>(new Set());
 
@@ -32,10 +37,14 @@ export function useKeyboard(
       if (held.current.has(key)) return;
       held.current.add(key);
 
-      onInit();
-      engineRef.current?.triggerNote(note);
-      recorderRef.current?.noteOn(note);
-      onNoteChange(note);
+      if (onAttack) {
+        onAttack(note);
+      } else {
+        onInit();
+        engineRef.current?.triggerNote(note);
+        recorderRef.current?.noteOn(note);
+        onNoteChange(note);
+      }
     }
 
     function onKeyUp(e: KeyboardEvent) {
@@ -45,9 +54,14 @@ export function useKeyboard(
 
       const note = keyToNote(key, octave);
       if (!note) return;
-      engineRef.current?.releaseNote(note);
-      recorderRef.current?.noteOff(note);
-      onNoteChange(null);
+
+      if (onRelease) {
+        onRelease(note);
+      } else {
+        engineRef.current?.releaseNote(note);
+        recorderRef.current?.noteOff(note);
+        onNoteChange(null);
+      }
     }
 
     window.addEventListener('keydown', onKeyDown);

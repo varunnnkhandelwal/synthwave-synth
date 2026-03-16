@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { AudioEngine } from '@/audio/engine';
 import { NoteRecorder } from '@/audio/recorder';
+import { useKeyboard } from '@/hooks/useKeyboard';
 
 interface KeyboardProps {
   octave: number;
@@ -10,6 +11,7 @@ interface KeyboardProps {
   recorderRef: React.RefObject<NoteRecorder>;
   onNoteChange: (note: string | null) => void;
   onInit: () => void;
+  disabled?: boolean;
 }
 
 // 2 octaves + 1 final C = 15 white keys
@@ -21,9 +23,13 @@ const NUM_WHITE = 15;
 const WHITE_PCT = 100 / NUM_WHITE; // ~6.667% per white key
 const BLACK_W_PCT = WHITE_PCT * 0.62; // black key width
 
+const WHITE_KEY_LABELS = ['A','S','D','F','G','H','J','K','L',';',"'",'Z','X','C','V'];
+const BLACK_KEY_LABELS = ['W','E','T','Y','U','I','O','[',']','\\'];
+
 interface NoteKey {
   note: string;
   octave: number;
+  label: string;
 }
 
 interface BlackKeyDef extends NoteKey {
@@ -35,7 +41,6 @@ function buildKeys(baseOctave: number): { whites: NoteKey[]; blacks: BlackKeyDef
   const blacks: BlackKeyDef[] = [];
 
   const whiteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-  // whiteIndex offset within each octave that has a black key to its right
   const blackDefs = [
     { localWhiteIdx: 0, note: 'C#' },
     { localWhiteIdx: 1, note: 'D#' },
@@ -44,22 +49,24 @@ function buildKeys(baseOctave: number): { whites: NoteKey[]; blacks: BlackKeyDef
     { localWhiteIdx: 5, note: 'A#' },
   ];
 
+  let whiteIdx = 0;
+  let blackIdx = 0;
   for (let oct = 0; oct < 2; oct++) {
     const octNum = baseOctave + oct;
-    whiteNames.forEach(n => whites.push({ note: n, octave: octNum }));
+    whiteNames.forEach(n => whites.push({ note: n, octave: octNum, label: WHITE_KEY_LABELS[whiteIdx++] }));
     blackDefs.forEach(({ localWhiteIdx, note }) =>
-      blacks.push({ note, octave: octNum, whiteIndex: oct * 7 + localWhiteIdx })
+      blacks.push({ note, octave: octNum, whiteIndex: oct * 7 + localWhiteIdx, label: BLACK_KEY_LABELS[blackIdx++] })
     );
   }
   // Final C
-  whites.push({ note: 'C', octave: baseOctave + 2 });
+  whites.push({ note: 'C', octave: baseOctave + 2, label: WHITE_KEY_LABELS[whiteIdx] });
 
   return { whites, blacks };
 }
 
 const noteId = (k: NoteKey) => `${k.note}${k.octave}`;
 
-export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange, onInit }: KeyboardProps) {
+export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange, onInit, disabled }: KeyboardProps) {
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const { whites, blacks } = buildKeys(octave);
 
@@ -78,6 +85,9 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
     setPressedKeys(prev => { const s = new Set(prev); s.delete(note); return s; });
   }, [engineRef, recorderRef, onNoteChange]);
 
+  // Keyboard shortcuts — wired to handleAttack/handleRelease so pressed state updates
+  useKeyboard(engineRef, recorderRef, octave, onNoteChange, onInit, disabled, handleAttack, handleRelease);
+
   return (
     <div style={styles.keyboard}>
       {/* White keys */}
@@ -94,7 +104,7 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
               onMouseLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
               onMouseEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
             >
-              <span style={styles.whiteLabel}>{k.note}{k.octave}</span>
+              <span style={styles.whiteLabel}>{k.label}</span>
             </div>
           );
         })}
@@ -120,7 +130,9 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
             onMouseUp={(e) => { e.stopPropagation(); handleRelease(id); }}
             onMouseLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
             onMouseEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
-          />
+          >
+            <span style={styles.blackLabel}>{bk.label}</span>
+          </div>
         );
       })}
     </div>
@@ -145,7 +157,9 @@ const styles: Record<string, React.CSSProperties> = {
     flex: 1,
     background: 'linear-gradient(180deg, #E8E6E1 0%, #D4D2CD 100%)',
     borderRadius: '0 0 5px 5px',
-    border: '1px solid rgba(0,0,0,0.15)',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: 'rgba(0,0,0,0.15)',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'flex-end',
@@ -154,8 +168,9 @@ const styles: Record<string, React.CSSProperties> = {
     transition: 'background 0.05s',
   },
   whitePressed: {
-    background: 'linear-gradient(180deg, #C0BEB8 0%, #B0AEA8 100%)',
-    boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.2)',
+    background: 'linear-gradient(180deg, #f0c4b8 0%, #e8a090 50%, #D4C0BC 100%)',
+    boxShadow: 'inset 0 3px 8px rgba(232,89,60,0.25), 0 0 10px rgba(232,89,60,0.15)',
+    borderColor: 'rgba(232,89,60,0.3)',
   },
   whiteLabel: {
     fontSize: 7,
@@ -169,13 +184,31 @@ const styles: Record<string, React.CSSProperties> = {
     height: '56%',
     background: 'linear-gradient(180deg, #2A2A2E 0%, #1A1A1E 100%)',
     borderRadius: '0 0 4px 4px',
-    border: '1px solid rgba(0,0,0,0.5)',
+    borderWidth: 1,
+    borderStyle: 'solid',
+    borderColor: 'rgba(0,0,0,0.5)',
     cursor: 'pointer',
     zIndex: 2,
     transition: 'background 0.05s',
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   blackPressed: {
-    background: 'linear-gradient(180deg, #1A1A1E 0%, #111114 100%)',
-    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+    background: 'linear-gradient(180deg, #5A2218 0%, #3D1610 100%)',
+    boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.6), 0 0 12px rgba(232,89,60,0.3)',
+    borderColor: 'rgba(232,89,60,0.4)',
+  },
+  blackLabel: {
+    position: 'absolute' as const,
+    bottom: 4,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    fontSize: 6,
+    fontWeight: 400,
+    color: 'rgba(255,255,255,0.35)',
+    fontFamily: 'JetBrains Mono, monospace',
+    pointerEvents: 'none',
+    userSelect: 'none',
   },
 };

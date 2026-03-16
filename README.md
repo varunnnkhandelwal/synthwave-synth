@@ -43,11 +43,23 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Keyboard Shortcuts
 
-**SYN mode (piano):**
-| Key | Note |
-|-----|------|
-| A S D F G H J K L | C D E F G A B C D |
-| W E T Y U | C# D# F# G# A# |
+**SYN mode (piano) — Octave 1:**
+| Key | A | S | D | F | G | H | J |
+|-----|---|---|---|---|---|---|---|
+| Note | C | D | E | F | G | A | B |
+
+| Key | W | E | T | Y | U |
+|-----|---|---|---|---|---|
+| Note | C# | D# | F# | G# | A# |
+
+**SYN mode (piano) — Octave 2:**
+| Key | K | L | ; | ' | Z | X | C | V |
+|-----|---|---|---|---|---|---|---|---|
+| Note | C | D | E | F | G | A | B | C |
+
+| Key | I | O | [ | ] | \ |
+|-----|---|---|---|---|---|
+| Note | C# | D# | F# | G# | A# |
 
 **PAD mode (drums):**
 | Key | Sound |

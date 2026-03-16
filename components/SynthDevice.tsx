@@ -12,7 +12,6 @@ import StepSequencer from './StepSequencer';
 import Transport from './Transport';
 import StatusBar from './StatusBar';
 import { useAudioEngine } from '@/hooks/useAudioEngine';
-import { useKeyboard } from '@/hooks/useKeyboard';
 import { useRecorder } from '@/hooks/useRecorder';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useDrumPads } from '@/hooks/useDrumPads';
@@ -185,8 +184,6 @@ export default function SynthDevice() {
   const handleBpmUp = () => setBpm((b) => Math.min(200, b + 5));
   const handleBpmDown = () => setBpm((b) => Math.max(60, b - 5));
 
-  // Keyboard note input — disabled in PAD mode to avoid key conflicts
-  useKeyboard(engineRef, recorderRef, octave, handleNoteChange, handleInit, mode === 'PAD');
 
   const statusText = exportState === 'done' ? 'Export complete' : undefined;
 
@@ -242,6 +239,7 @@ export default function SynthDevice() {
           recorderRef={recorderRef}
           onNoteChange={handleNoteChange}
           onInit={handleInit}
+          disabled={mode === 'PAD'}
         />
       )}
 
