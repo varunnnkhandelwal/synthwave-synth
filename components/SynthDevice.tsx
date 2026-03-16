@@ -239,7 +239,7 @@ export default function SynthDevice() {
           recorderRef={recorderRef}
           onNoteChange={handleNoteChange}
           onInit={handleInit}
-          disabled={mode === 'PAD'}
+          disabled={false}
         />
       )}
 
