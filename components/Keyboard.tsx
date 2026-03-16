@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { AudioEngine } from '@/audio/engine';
 import { NoteRecorder } from '@/audio/recorder';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -68,6 +68,7 @@ const noteId = (k: NoteKey) => `${k.note}${k.octave}`;
 
 export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange, onInit, disabled }: KeyboardProps) {
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
+  const pressedKeysRef = useRef<Set<string>>(new Set());
   const { whites, blacks } = buildKeys(octave);
 
   const handleAttack = useCallback((note: string) => {
@@ -75,14 +76,37 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
     engineRef.current?.triggerNote(note);
     recorderRef.current?.noteOn(note);
     onNoteChange(note);
-    setPressedKeys(prev => new Set(prev).add(note));
+    setPressedKeys(prev => { const s = new Set(prev); s.add(note); pressedKeysRef.current = s; return s; });
   }, [engineRef, recorderRef, onNoteChange, onInit]);
 
   const handleRelease = useCallback((note: string) => {
     engineRef.current?.releaseNote(note);
     recorderRef.current?.noteOff(note);
     onNoteChange(null);
-    setPressedKeys(prev => { const s = new Set(prev); s.delete(note); return s; });
+    setPressedKeys(prev => { const s = new Set(prev); s.delete(note); pressedKeysRef.current = s; return s; });
+  }, [engineRef, recorderRef, onNoteChange]);
+
+  // Global safety net: if pointerup fires anywhere outside a key (mobile transform
+  // coordinate mismatch, scroll cancellation, etc.) release all held notes
+  useEffect(() => {
+    function releaseAll() {
+      if (pressedKeysRef.current.size === 0) return;
+      pressedKeysRef.current.forEach(note => {
+        engineRef.current?.releaseNote(note);
+        recorderRef.current?.noteOff(note);
+      });
+      pressedKeysRef.current = new Set();
+      setPressedKeys(new Set());
+      onNoteChange(null);
+    }
+    window.addEventListener('pointerup', releaseAll);
+    window.addEventListener('pointercancel', releaseAll);
+    window.addEventListener('blur', releaseAll);
+    return () => {
+      window.removeEventListener('pointerup', releaseAll);
+      window.removeEventListener('pointercancel', releaseAll);
+      window.removeEventListener('blur', releaseAll);
+    };
   }, [engineRef, recorderRef, onNoteChange]);
 
   // Keyboard shortcuts — wired to handleAttack/handleRelease so pressed state updates
@@ -99,10 +123,11 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
             <div
               key={id}
               style={pressed ? { ...styles.white, ...styles.whitePressed } : styles.white}
-              onMouseDown={() => handleAttack(id)}
-              onMouseUp={() => handleRelease(id)}
-              onMouseLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
-              onMouseEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
+              onPointerDown={() => handleAttack(id)}
+              onPointerUp={() => handleRelease(id)}
+              onPointerCancel={() => handleRelease(id)}
+              onPointerLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
+              onPointerEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
             >
               <span style={styles.whiteLabel}>{k.label}</span>
             </div>
@@ -126,10 +151,11 @@ export default function Keyboard({ octave, engineRef, recorderRef, onNoteChange,
               left: `${leftPct}%`,
               width: `${BLACK_W_PCT}%`,
             }}
-            onMouseDown={(e) => { e.stopPropagation(); handleAttack(id); }}
-            onMouseUp={(e) => { e.stopPropagation(); handleRelease(id); }}
-            onMouseLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
-            onMouseEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
+            onPointerDown={(e) => { e.stopPropagation(); handleAttack(id); }}
+            onPointerUp={(e) => { e.stopPropagation(); handleRelease(id); }}
+            onPointerCancel={(e) => { e.stopPropagation(); handleRelease(id); }}
+            onPointerLeave={() => { if (pressedKeys.has(id)) handleRelease(id); }}
+            onPointerEnter={(e) => { if (e.buttons === 1) handleAttack(id); }}
           >
             <span style={styles.blackLabel}>{bk.label}</span>
           </div>
@@ -147,6 +173,7 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'hidden',
     userSelect: 'none',
     zIndex: 1,
+    touchAction: 'none',
   },
   whiteRow: {
     display: 'flex',

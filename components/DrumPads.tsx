@@ -18,7 +18,7 @@ interface PadProps {
 const Pad = memo(function Pad({ id, keyHint, isActive, onTrigger }: PadProps) {
   return (
     <div
-      onMouseDown={() => onTrigger(id)}
+      onPointerDown={() => onTrigger(id)}
       style={{
         position: 'relative',
         borderRadius: 16,
